@@ -9,9 +9,9 @@ var budgetController = (function () {
         this.percentage = -1;
     };
 
-    Expense.prototype.calcPercentage = function (totaiIncome) {
-        if (totaiIncome > 0) {
-            this.percentage = Math.round((this.value / totaiIncome) * 100);
+    Expense.prototype.calcPercentage = function (totalIncome) {
+        if (totalIncome > 0) {
+            this.percentage = Math.round((this.value / totalIncome) * 100);
         } else {
             this.percentage = -1;
         }
@@ -63,10 +63,12 @@ var budgetController = (function () {
 
             if (type === 'exp') {
                 newItem = new Expense(ID, descr, val);
+                newItem.calcPercentage(data.totals.inc);
             } else if (type === 'inc') {
                 newItem = new Income(ID, descr, val);
             }
             //for Type exp or inc, push to end of array
+            
             data.allItems[type].push(newItem);
             return newItem;
         },
@@ -105,6 +107,7 @@ var budgetController = (function () {
                 cur.calcPercentage(data.totals.inc);
             });
         },
+
 
         getPercentages: function () {
             //map returns (foreach does not)
@@ -154,6 +157,22 @@ var UIController = (function () {
         expensePercentageLabel: '.item__percentage'
     };
 
+    var formatNumber = function (num, type) {
+        var num;
+        //absolute number
+        num = Math.abs(num);
+        //round to 2 decimals
+        num = num.toFixed(2);
+        //num = num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1,")
+        numSplit = num.split('.');
+        int = numSplit[0];
+        if (int.length > 3) {
+            int = int.substr(0, int.length - 3) + ',' + int.substr(int.length - 3, 3);
+        }
+        dec = numSplit[1];        
+        return (type === 'exp' ? '-' : '+') + '' + int + '.' + dec;
+    };
+
     //public returns
     return {
         getInput: function () {
@@ -175,18 +194,23 @@ var UIController = (function () {
 
             } else if (type === 'exp') {
                 element = DOMstrings.expenseContainer;
-                html = '<div class="item clearfix" id="exp-%id%"><div class="item__description">%description%</div><div class="right clearfix"><div class="item__value">%value%</div><div class="item__percentage">21%</div><div class="item__delete"><button class="item__delete--btn"><i class="ion-ios-close-outline"></i></button></div></div></div>';
+                html = '<div class="item clearfix" id="exp-%id%"><div class="item__description">%description%</div><div class="right clearfix"><div class="item__value">%value%</div><div class="item__percentage">%percent%%</div><div class="item__delete"><button class="item__delete--btn"><i class="ion-ios-close-outline"></i></button></div></div></div>';
             }
             //String replace() = searches for a string, then replace the string for data 
             newHTML = html.replace('%id%', obj.id);
             newHTML = newHTML.replace('%description%', obj.description);
-            newHTML = newHTML.replace('%value%', obj.value);
+            newHTML = newHTML.replace('%value%', formatNumber(obj.value, type));
+            newHTML = newHTML.replace('%percent%', obj.percentage);
 
             //Insert HTML into the DOM, and clear fields.
             $(element).prepend(newHTML);
         },
 
-        deleteListItem: function (selectorID, ) {
+        //updateListItem: function (obj) {
+        //    $('#exp-' + obj.id + ' > .item__percentage').html(obj.percentage + '%');
+        //},
+
+        deleteListItem: function (selectorID) {
             //remove id = (e.g.) 'inc-0''
             $('#' + selectorID).remove();
         },
@@ -199,7 +223,8 @@ var UIController = (function () {
         },
 
         displayBudget: function (obj) {
-            console.log('displaybudget');
+            var type;
+            obj.budget > 0 ? type = 'inc' : type = 'exp';
             $(DOMstrings.budgetLabel).text(obj.budget);
             $(DOMstrings.incomeLabel).text(obj.totalInc);
             $(DOMstrings.expenseLabel).text(obj.totalExp);
@@ -269,16 +294,14 @@ var controller = (function (budgetCtrl, UICtrl) {
         UICtrl.displayBudget(budget);
     };
 
-    var updatePercentage = function () {
+    var updatePercentages = function () {
         //1. calc %
         budgetCtrl.calculatePercentages();
-        //2. Read %s from budget controller
-        var percentages = budgetCtrl.getPercentages();
-        //3. Update UI with new %s
-        console.log(percentages);
+        
+        
     }
 
-    //ADD PROCESS FLOW
+
     var ctrlAddItem = function () {
         var input, newItem;
 
@@ -295,12 +318,13 @@ var controller = (function (budgetCtrl, UICtrl) {
             UICtrl.clearFields();
             //calc and update budget
             updateBudget();
+            updatePercentages();
+
+
         } else {
             alert('ERROR: Please enter a description and a posttive amount.');
             UICtrl.clearFields();
         }
-        //calc and update %s
-        updatePercentage();
     };
 
     var ctrlDeleteItem = function (e) {
@@ -320,7 +344,7 @@ var controller = (function (budgetCtrl, UICtrl) {
             ID = parseInt(splitID[1]);
 
             //1. Delete item from data structure (budget controller)
-            budgetController.deleteItem(type, ID);
+            budgetCtrl.deleteItem(type, ID);
             //2. Delete item from UI
             UIController.deleteListItem(itemID);
             //3. Update and show budget totals
@@ -329,23 +353,23 @@ var controller = (function (budgetCtrl, UICtrl) {
         }
     }
 
-        //public returns
-        return {
-            init: function () {
-                console.log('app started');
-                UICtrl.displayBudget({
-                    budget: 0,
-                    totalInc: 0,
-                    totalExp: 0,
-                    percentage: -1
-                });
-                setupEventListeners();
-            }
-
+    //public returns
+    return {
+        init: function () {
+            console.log('app started');
+            UICtrl.displayBudget({
+                budget: 0,
+                totalInc: 0,
+                totalExp: 0,
+                percentage: -1
+            });
+            setupEventListeners();
         }
 
+    }
 
-        //assign budgetController to budgetCtrl argument, and for UI (can chage name for below when using with diff module)
-    })(budgetController, UIController);
 
-    controller.init();
+    //assign budgetController to budgetCtrl argument, and for UI (can chage name for below when using with diff module)
+})(budgetController, UIController);
+
+controller.init();
